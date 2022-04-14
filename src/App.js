@@ -1,4 +1,4 @@
-import React, {useMemo, useRef} from "react";
+import React, {useEffect, useMemo, useRef} from "react";
 import './styles/App.css';
 import {useState} from "react";
 import PostList from "./Components/PostList";
@@ -7,30 +7,31 @@ import MyInput from "./Components/UI/input/MyInput";
 import PostForm from "./Components/PostForm";
 import MySelect from "./Components/UI/select/MySelect";
 import PostFilter from "./Components/PostFilter";
+import MyModal from "./Components/UI/MyModal/MyModal";
+import {usePosts} from "./hooks/usePosts";
+import axios from "axios";
+import PostService from "./API/PostService";
+import Loader from "./Components/UI/loader/Loader";
+import {useFetching} from "./hooks/useFetching";
 
 function App(factory, deps) {
-    const [posts, setPosts] = useState([
-        {id: 1, title: "Javascript", body: "Javascript - язык программирования"},
-        {id: 2, title: "Javascript 2", body: "Javascript - язык программирования"},
-        {id: 3, title: "Javascript 3", body: "Javascript - язык программирования"},
-    ]);
+    const [posts, setPosts] = useState([]);
     const [filter, setFilter] = useState({sort: '', query: ''})
+    const [modal, setModal] = useState(false)
+    const sortedAndSearchedPosts = usePosts(posts, filter.sort, filter.query)
+    const [fetchPosts, isPostsLoading, postError] = useFetching(async ()=>{
+        const posts = await PostService.getAll()
+        setPosts(posts)
+    })
 
+    useEffect(() => {
+        fetchPosts()
+    }, [])
 
-    const sortedPosts = useMemo(() => {
-        console.log("функция сортировки сработала")
-        if (filter.sort) {
-            return [...posts].sort((a, b) => a[filter.sort].localeCompare(b[filter.sort]))
-        }
-        return posts;
-    }, [filter.sort, posts]);
-
-    const sortedAndSearchedPosts = useMemo(() => {
-        return sortedPosts.filter(post => post.title.toLowerCase().includes(filter.query))
-    }, [filter.query, sortedPosts])
 
     function createPost(newPost) {
         setPosts([...posts, newPost])
+        setModal(false)
     }
 
     function removePost(post) {
@@ -39,13 +40,31 @@ function App(factory, deps) {
 
     return (
         <div className="App">
-            <PostForm create={createPost}/>
+
+            <MyButton onClick={fetchPosts}>Запрос </MyButton>
+
+            <MyButton style={{marginTop: 15}} onClick={() => setModal(true)}>
+                Создать пост
+            </MyButton>
+
+            <MyModal visible={modal} setVisible={setModal}>
+                <PostForm create={createPost}/>
+            </MyModal>
+
 
             <hr style={{margin: '20px 0'}}/>
 
             <PostFilter filter={filter} setFilter={setFilter}/>
 
-            <PostList remove={removePost} posts={sortedAndSearchedPosts} title="JS"/>
+            {postError &&
+                <h1>Произошла ошибка ${postError}</h1>
+            }
+
+            {isPostsLoading
+                ? <div style={{display:'flex', justifyContent: 'center'}}><Loader/></div>
+                : <PostList remove={removePost} posts={sortedAndSearchedPosts} title="JS"/>
+            }
+
         </div>
     )
         ;
